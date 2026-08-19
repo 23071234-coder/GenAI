@@ -1,0 +1,123 @@
+import nltk
+import string
+import re
+from collections import Counter
+import spacy
+import numpy as np
+
+# Download required NLTK resources
+nltk.download('punkt')
+nltk.download('stopwords')
+nltk.download('wordnet')
+nltk.download('omw-1.4')
+nltk.download('averaged_perceptron_tagger')
+nltk.download('punkt_tab')
+nltk.download('averaged_perceptron_tagger_eng')
+
+from nltk.tokenize import word_tokenize
+from nltk.corpus import stopwords, wordnet
+from nltk.stem import PorterStemmer, WordNetLemmatizer
+from nltk import pos_tag
+from sklearn.preprocessing import OneHotEncoder
+from sklearn.feature_extraction.text import CountVectorizer
+
+# Load spaCy model
+nlp = spacy.load("en_core_web_sm")
+
+# Sample Customer Review
+text = """
+Apple delivered my iPhone on time. The product quality is amazing!
+I bought it from Amazon, and the service was excellent.
+"""
+
+print("\nOriginal Text:\n", text)
+
+# 1. Convert text to lowercase
+lower_text = text.lower()
+print("\n1. Lowercase Text:\n", lower_text)
+
+# 2. Remove punctuation and special characters
+clean_text = re.sub(r'[^a-zA-Z\s]', '', lower_text)
+print("\n2. Cleaned Text:\n", clean_text)
+
+# 3. Tokenize the text into words
+tokens = word_tokenize(clean_text)
+print("\n3. Tokens:\n", tokens)
+
+# 4. Remove stop words
+stop_words = set(stopwords.words('english'))
+filtered_tokens = [word for word in tokens if word not in stop_words]
+print("\n4. Tokens after Stop Word Removal:\n", filtered_tokens)
+
+# 5. Apply Stemming
+stemmer = PorterStemmer()
+stemmed_words = [stemmer.stem(word) for word in filtered_tokens]
+print("\n5. Stemmed Words:\n", stemmed_words)
+
+# Helper function to convert NLTK POS tags to WordNet POS tags
+def get_wordnet_pos(treebank_tag):
+    if treebank_tag.startswith('J'):
+        return wordnet.ADJ
+    elif treebank_tag.startswith('V'):
+        return wordnet.VERB
+    elif treebank_tag.startswith('N'):
+        return wordnet.NOUN
+    elif treebank_tag.startswith('R'):
+        return wordnet.ADV
+    else:
+        return wordnet.NOUN # Default to noun if no clear tag
+
+# 6. Apply Lemmatization with POS tags
+lemmatizer = WordNetLemmatizer()
+pos_tagged_tokens = pos_tag(filtered_tokens)
+lemmatized_words = [lemmatizer.lemmatize(word, get_wordnet_pos(tag)) for word, tag in pos_tagged_tokens]
+print("\n6. Lemmatized Words :\n", lemmatized_words)
+words_for_ohe = np.array(lemmatized_words).reshape(-1, 1)
+
+# Initialize OneHotEncoder
+encoder = OneHotEncoder(handle_unknown='ignore', sparse_output=False)
+
+# Fit and transform the words
+one_hot_matrix = encoder.fit_transform(words_for_ohe)
+
+print("\nOne-Hot Encoded Representation:\n")
+
+print("Features (Vocabulary of unique words from One-Hot Encoder):", encoder.get_feature_names_out(['word']))
+
+print("\nOne-Hot Encoded Matrix (each row is a word, each column is a unique word feature):\n", one_hot_matrix)
+
+
+# Initialize the CountVectorizer
+vectorizer = CountVectorizer()
+
+# 1. & 2. & 3. Tokenize, create vocabulary, and count occurrences
+bow_matrix = vectorizer.fit_transform([lemmatized_sentence])
+
+print("\nBag of Words Representation (using CountVectorizer):\n")
+
+print("Features (Vocabulary of unique words):\n", vectorizer.get_feature_names_out())
+
+print("\nWord to Index Mapping (vocabulary_ attribute):\n", vectorizer.vocabulary_)
+
+# 4. Store the count in a document-term matrix
+print("\nDocument-Term Matrix (counts of words):\n", bow_matrix.toarray())
+
+# 7. Perform POS Tagging on lemmatized words using spaCy
+print("\n7. POS Tags (from lemmatized words) :")
+lemmatized_sentence = " ".join(lemmatized_words)
+doc_lem = nlp(lemmatized_sentence)
+for token in doc_lem:
+    print(f"{token.text} --> {token.tag_}")
+
+# 8. Display Word Frequency
+word_freq = Counter(lemmatized_words)
+print("\n8. Word Frequency:")
+for word, freq in word_freq.items():
+    print(f"{word}: {freq}")
+
+# 9. Perform Named Entity Recognition (NER)
+doc = nlp(text)
+
+print("\n9. Named Entities:")
+for entity in doc.ents:
+    print(f"{entity.text} --> {entity.label_}")
