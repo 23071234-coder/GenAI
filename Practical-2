@@ -10,97 +10,71 @@ from tensorflow import keras
 from tensorflow.keras import layers
 import pandas as pd
 
-# Create a DataFrame from the existing reviews and sentiments
-data = pd.DataFrame({
-    'review': reviews,
-    'sentiment': sentiments
-})
-
-# Save the DataFrame to a CSV file
+# Create DataFrame
+data = pd.DataFrame({'review': reviews, 'sentiment': sentiments})
 data.to_csv('sentiment_reviews.csv', index=False)
 
-# Download NLTK resources (if not already downloaded)
+# Download NLTK resources
 try:
     stopwords.words('english')
 except LookupError:
     nltk.download('stopwords')
 try:
-    wordnet.synsets('test') # Check for wordnet
+    wordnet.synsets('test')
 except LookupError:
     nltk.download('wordnet')
 
-# Initialize Lemmatizer and Stopwords
 lemmatizer = WordNetLemmatizer()
 stopwords_english = set(stopwords.words('english'))
-
-# Remove 'not' from the stopwords list, as it's crucial for sentiment analysis
 stopwords_english.discard('not')
 
-# Define the preprocessing function
+# Preprocessing function
 def preprocess_text(text):
-    # Convert to lowercase
     text = text.lower()
-    # Remove non-alphabetic characters (keep spaces)
     text = re.sub(r'[^a-z\s]', '', text)
-    # Tokenize and remove stopwords, then lemmatize
     words = text.split()
     words = [lemmatizer.lemmatize(word) for word in words if word not in stopwords_english]
     return ' '.join(words)
 
-# Load data from the CSV file
+# Load data
 data = pd.read_csv('sentiment_reviews.csv')
 reviews = data['review'].tolist()
 sentiments = data['sentiment'].tolist()
 
-display(reviews)
-display(sentiments)
-# Apply preprocessing to all reviews
 processed_reviews = [preprocess_text(review) for review in reviews]
 display(processed_reviews)
 
-# Initialize and fit CountVectorizer on *all* processed reviews with binary=True and ngram_range
-vectorizer = CountVectorizer(binary=True, ngram_range=(1, 2)) # Added ngram_range to capture phrases
+# Vectorization
+vectorizer = CountVectorizer(binary=True, ngram_range=(1, 2))
 vectorizer.fit(processed_reviews)
 print("Vocabulary:", vectorizer.get_feature_names_out())
 
-# Combine reviews and sentiments to filter neutral ones
-combined_data = []
-for i in range(len(sentiments)):
-    if sentiments[i] != 'neutral':
-        combined_data.append((processed_reviews[i], sentiments[i]))
+# Remove neutral reviews
+combined_data = [(processed_reviews[i], sentiments[i])
+                 for i in range(len(sentiments)) if sentiments[i] != 'neutral']
 
-# Separate filtered reviews and sentiments
-filtered_processed_reviews = [item[0] for item in combined_data]
-filtered_sentiments = [item[1] for item in combined_data]
+filtered_processed_reviews = [x[0] for x in combined_data]
+filtered_sentiments = [x[1] for x in combined_data]
 
-# Transform the filtered reviews using the fitted vectorizer
 X_filtered = vectorizer.transform(filtered_processed_reviews)
-
-# Display the binary feature vectors for the filtered data
-print("\nBinary Feature Vectors (X_filtered):")
-display(X_filtered.toarray().astype(int))
-
-# Convert sentiments to numerical labels (0 for negative, 1 for positive)
 y = np.array([1 if s == 'positive' else 0 for s in filtered_sentiments])
 
-print("Shape of feature vectors (X_filtered):", X_filtered.shape)
-print("Shape of labels (y):", y.shape)
-# Split the data into training and testing sets
-X_train, X_test, y_train, y_test = train_test_split(X_filtered, y, test_size=0.4, random_state=42, stratify=y)
+print("\nBinary Feature Vectors:")
+display(X_filtered.toarray().astype(int))
+print("X shape:", X_filtered.shape)
+print("y shape:", y.shape)
 
-print("X_train shape:", X_train.shape)
-print("X_test shape:", X_test.shape)
-print("y_train shape:", y_train.shape)
-print("y_test shape:", y_test.shape)
+# Train-test split
+X_train, X_test, y_train, y_test = train_test_split(
+    X_filtered, y, test_size=0.4, random_state=42, stratify=y)
 
-import tensorflow as tf
-from tensorflow import keras
-from tensorflow.keras import layers
+print("X_train:", X_train.shape)
+print("X_test:", X_test.shape)
+print("y_train:", y_train.shape)
+print("y_test:", y_test.shape)
 
-# Define the ANN model
-# Use the number of features from the CountVectorizer's vocabulary as input_dim
+# ANN Model
 input_dim = len(vectorizer.get_feature_names_out())
-
 model = keras.Sequential([
     layers.Input(shape=(input_dim,)),
     layers.Dense(64, activation='relu'),
@@ -108,53 +82,41 @@ model = keras.Sequential([
     layers.Dense(1, activation='sigmoid')
 ])
 
-# Compile the model
 model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
-
-# Display model summary
 model.summary()
 
-# Train the model with 50 epochs (increased from 10)
-history = model.fit(X_train.toarray(), y_train, epochs=50, batch_size=8, validation_split=0.2, verbose=0)
+# Train model
+history = model.fit(
+    X_train.toarray(), y_train,
+    epochs=50, batch_size=8,
+    validation_split=0.2, verbose=0)
 
-print("Model re-trained.")
-
-# Evaluate the model on the test set
+# Evaluate model
 loss, accuracy = model.evaluate(X_test.toarray(), y_test, verbose=0)
 print(f"\nTest Loss: {loss:.4f}")
 print(f"Test Accuracy: {accuracy:.4f}")
 
-# New review to classify
+# Predict new review
 new_review = "This is a worst product, I'm not happy with it!"
-
-# Preprocess the new review
 processed_new_review = preprocess_text(new_review)
-print(f"Original Review: {new_review}")
-print(f"Processed Review: {processed_new_review}")
+print("Original Review:", new_review)
+print("Processed Review:", processed_new_review)
 
-# Transform the processed review into a feature vector using the fitted vectorizer
 new_review_vector = vectorizer.transform([processed_new_review])
-
-print("\nFeature Vector for New Review:")
-display(new_review_vector.toarray())
-
-# Make a prediction using the trained model
 prediction = model.predict(new_review_vector.toarray())[0][0]
-print(f"\nPrediction : {prediction:.4f}")
 
-# Interpret the prediction
+print(f"\nPrediction: {prediction:.4f}")
 sentiment_label = "Positive" if prediction > 0.5 else "Negative"
-print(f"Predicted Sentiment: {sentiment_label}")
+print("Predicted Sentiment:", sentiment_label)
 
+# Evaluation metrics
 from sklearn.metrics import confusion_matrix, accuracy_score, precision_score, recall_score, f1_score
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-# Make predictions on the test set
 y_pred_raw = model.predict(X_test.toarray())
 y_pred = (y_pred_raw > 0.5).astype(int)
 
-# Calculate metrics
 cm = confusion_matrix(y_test, y_pred)
 accuracy = accuracy_score(y_test, y_pred)
 precision = precision_score(y_test, y_pred)
@@ -163,15 +125,16 @@ f1 = f1_score(y_test, y_pred)
 
 print("\nConfusion Matrix:")
 display(cm)
-
-print(f"\nAccuracy: {accuracy:.4f}")
+print(f"Accuracy: {accuracy:.4f}")
 print(f"Precision: {precision:.4f}")
 print(f"Recall: {recall:.4f}")
 print(f"F1-Score: {f1:.4f}")
 
-# Visualize the Confusion Matrix
+# Confusion matrix visualization
 plt.figure(figsize=(6, 4))
-sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=['Negative', 'Positive'], yticklabels=['Negative', 'Positive'])
+sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
+            xticklabels=['Negative', 'Positive'],
+            yticklabels=['Negative', 'Positive'])
 plt.xlabel('Predicted')
 plt.ylabel('True')
 plt.title('Confusion Matrix')
