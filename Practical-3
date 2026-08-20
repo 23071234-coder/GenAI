@@ -1,406 +1,169 @@
-import re
 import numpy as np
 import tensorflow as tf
-
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Embedding, LSTM, Dense
 from tensorflow.keras.preprocessing.text import Tokenizer
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 from tensorflow.keras.callbacks import EarlyStopping
 
-
-# ============================================================
-# 1. SETTINGS
-# ============================================================
-
 SEQ_LEN = 5
 EPOCHS = 10
 BATCH_SIZE = 32
-
 np.random.seed(42)
 tf.random.set_seed(42)
 
-
-# ============================================================
-# 2. CREATE A LARGER PREDICTABLE CORPUS
-# ============================================================
-
 base_sentences = [
-
     "the quick brown fox jumps over the lazy dog",
     "the quick brown fox runs over the lazy dog",
     "the quick brown fox jumps over the small dog",
-
     "machine learning is useful for many applications",
     "machine learning is useful for data analysis",
     "machine learning is useful for prediction",
-
     "deep learning is a part of machine learning",
     "deep learning uses neural networks",
     "deep learning can learn complex patterns",
-
     "natural language processing is used for text",
     "natural language processing understands human language",
     "natural language processing predicts the next word",
-
     "the dog is a good pet",
     "the dog is a loyal animal",
     "the dog likes to play",
     "the dog likes to run",
-
     "the cat is a small animal",
     "the cat likes to play",
     "the cat likes to sleep",
-
     "we are building a language model",
     "we are training a neural network",
     "we are predicting the next word",
-
     "the model learns from training data",
     "the model learns patterns from data",
     "the model predicts the next word",
-
     "data is important for machine learning",
     "more data helps the model learn",
     "training data improves the model",
-
     "artificial intelligence is changing the world",
     "artificial intelligence uses machine learning",
     "artificial intelligence can solve problems"
 ]
 
-
-# Repeat predictable sentences
-# This gives the model many examples
 sentences = base_sentences * 100
 
-
-# ============================================================
-# 3. TOKENIZER
-# ============================================================
-
-tokenizer = Tokenizer(
-    filters="",
-    oov_token="<OOV>"
-)
-
+# Tokenization
+tokenizer = Tokenizer(filters="", oov_token="<OOV>")
 tokenizer.fit_on_texts(sentences)
-
-total_words = len(
-    tokenizer.word_index
-) + 1
-
+total_words = len(tokenizer.word_index) + 1
 index_word = tokenizer.index_word
 
 print("=" * 60)
 print("DATASET")
 print("=" * 60)
-
 print("Sentences:", len(sentences))
 print("Vocabulary:", total_words)
 
-
-# ============================================================
-# 4. CREATE TRAINING DATA
-# ============================================================
-
-X = []
-y = []
-
+# Create sequences
+X, y = [], []
 
 for sentence in sentences:
+    tokens = tokenizer.texts_to_sequences([sentence])[0]
+    for i in range(1, len(tokens)):
+        sequence = tokens[max(0, i - SEQ_LEN):i]
+        X.append(pad_sequences([sequence], maxlen=SEQ_LEN, padding="pre")[0])
+        y.append(tokens[i])
 
-    tokens = tokenizer.texts_to_sequences(
-        [sentence]
-    )[0]
-
-    for i in range(
-        1,
-        len(tokens)
-    ):
-
-        start = max(
-            0,
-            i - SEQ_LEN
-        )
-
-        sequence = tokens[
-            start:i
-        ]
-
-        target = tokens[i]
-
-        # Pad input
-        sequence = pad_sequences(
-            [sequence],
-            maxlen=SEQ_LEN,
-            padding="pre"
-        )[0]
-
-        X.append(sequence)
-        y.append(target)
-
-
-X = np.array(
-    X,
-    dtype=np.int32
-)
-
-y = np.array(
-    y,
-    dtype=np.int32
-)
-
+X = np.array(X, dtype=np.int32)
+y = np.array(y, dtype=np.int32)
 
 print("Training examples:", len(X))
 print("X shape:", X.shape)
 print("y shape:", y.shape)
 
+# Shuffle and split
+indices = np.random.permutation(len(X))
+X, y = X[indices], y[indices]
 
-# ============================================================
-# 5. SHUFFLE
-# ============================================================
-
-indices = np.random.permutation(
-    len(X)
-)
-
-X = X[indices]
-y = y[indices]
-
-
-# ============================================================
-# 6. TRAIN / VALIDATION SPLIT
-# ============================================================
-
-split = int(
-    len(X) * 0.80
-)
-
-X_train = X[:split]
-y_train = y[:split]
-
-X_val = X[split:]
-y_val = y[split:]
-
+split = int(len(X) * 0.8)
+X_train, X_val = X[:split], X[split:]
+y_train, y_val = y[:split], y[split:]
 
 print("Training:", len(X_train))
 print("Validation:", len(X_val))
 
-
-# ============================================================
-# 7. MODEL
-# ============================================================
-
+# LSTM model
 model = Sequential([
-
-    Embedding(
-        input_dim=total_words,
-        output_dim=128,
-        mask_zero=True
-    ),
-
-    LSTM(
-        128,
-        return_sequences=True
-    ),
-
-    LSTM(
-        64
-    ),
-
-    Dense(
-        128,
-        activation="relu"
-    ),
-
-    Dense(
-        total_words,
-        activation="softmax"
-    )
+    Embedding(total_words, 128, mask_zero=True),
+    LSTM(128, return_sequences=True),
+    LSTM(64),
+    Dense(128, activation="relu"),
+    Dense(total_words, activation="softmax")
 ])
 
-
-# ============================================================
-# 8. COMPILE
-# ============================================================
-
 model.compile(
-
-    optimizer=tf.keras.optimizers.Adam(
-        learning_rate=0.001
-    ),
-
+    optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
     loss="sparse_categorical_crossentropy",
-
     metrics=["accuracy"]
 )
 
-
 model.summary()
 
-
-# ============================================================
-# 9. EARLY STOPPING
-# ============================================================
-
+# Early stopping
 early_stopping = EarlyStopping(
-
     monitor="val_accuracy",
-
     mode="max",
-
     patience=5,
-
     restore_best_weights=True,
-
     verbose=1
 )
 
-
-# ============================================================
-# 10. TRAIN
-# ============================================================
-
-print("\n")
-print("=" * 60)
+# Training
+print("\n" + "=" * 60)
 print("TRAINING")
 print("=" * 60)
 
-
 history = model.fit(
-
-    X_train,
-    y_train,
-
-    validation_data=(
-        X_val,
-        y_val
-    ),
-
+    X_train, y_train,
+    validation_data=(X_val, y_val),
     epochs=EPOCHS,
-
     batch_size=BATCH_SIZE,
-
     shuffle=True,
-
-    callbacks=[
-        early_stopping
-    ],
-
+    callbacks=[early_stopping],
     verbose=1
 )
 
+# Evaluation
+loss, accuracy = model.evaluate(X_val, y_val, verbose=0)
+best_accuracy = max(history.history["val_accuracy"])
 
-# ============================================================
-# 11. EVALUATION
-# ============================================================
-
-results = model.evaluate(
-    X_val,
-    y_val,
-    verbose=0
-)
-
-
-loss = results[0]
-accuracy = results[1]
-
-best_accuracy = max(
-    history.history["val_accuracy"]
-)
-
-
-print("\n")
-print("=" * 60)
+print("\n" + "=" * 60)
 print("FINAL RESULTS")
 print("=" * 60)
+print(f"Validation Loss: {loss:.4f}")
+print(f"Validation Accuracy: {accuracy * 100:.2f}%")
+print(f"Best Validation Accuracy: {best_accuracy * 100:.2f}%")
 
-print(
-    f"Validation Loss: {loss:.4f}"
-)
-
-print(
-    f"Validation Accuracy: "
-    f"{accuracy * 100:.2f}%"
-)
-
-print(
-    f"Best Validation Accuracy: "
-    f"{best_accuracy * 100:.2f}%"
-)
-
-
-# ============================================================
-# 12. PREDICTION FUNCTION
-# ============================================================
-
+# Prediction function
 def predict_next_word(seed_text):
-
-    tokens = tokenizer.texts_to_sequences(
-        [seed_text.lower()]
-    )[0]
-
+    tokens = tokenizer.texts_to_sequences([seed_text.lower()])[0]
     tokens = tokens[-SEQ_LEN:]
+    tokens = pad_sequences([tokens], maxlen=SEQ_LEN, padding="pre")
+    probabilities = model.predict(tokens, verbose=0)[0]
+    predicted_index = np.argmax(probabilities)
+    return index_word.get(predicted_index, "")
 
-    tokens = pad_sequences(
-        [tokens],
-        maxlen=SEQ_LEN,
-        padding="pre"
-    )
-
-    probabilities = model.predict(
-        tokens,
-        verbose=0
-    )[0]
-
-    predicted_index = np.argmax(
-        probabilities
-    )
-
-    predicted_word = index_word.get(
-        predicted_index,
-        ""
-    )
-
-    return predicted_word
-
-
-# ============================================================
-# 13. TEST
-# ============================================================
-
+# Testing
 test_inputs = [
-
     "the quick brown fox",
-
     "machine learning is",
-
     "deep learning is",
-
     "the dog is",
-
     "the cat likes",
-
     "natural language processing",
-
     "we are building",
-
     "the model learns"
-
 ]
 
-
-print("\n")
-print("=" * 60)
+print("\n" + "=" * 60)
 print("PREDICTIONS")
 print("=" * 60)
 
-
 for text in test_inputs:
-
-    word = predict_next_word(text)
-
-    print(
-        f"{text} -> {word}"
-    )
+    print(f"{text} -> {predict_next_word(text)}")
