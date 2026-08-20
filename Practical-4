@@ -6,21 +6,43 @@ from tensorflow.keras.layers import Input,LSTM,Embedding,Dense
 from tensorflow.keras.models import Model
 from tensorflow.keras.callbacks import EarlyStopping
 
-# Training data
-english_sentences=["hello","hi","good morning","good night","how are you","what is your name","my name is john","where are you going","i am going home","i am a student","i am happy","i am sad","i am hungry","i am tired","thank you","you are welcome","please help me","what are you doing","i love you","i like this","i do not know","yes","no","come here","go there","sit down","stand up","open the door","close the door","give me water","where is my phone","where is the school","where is the hospital","i want food","i want water","i want to sleep","today is a good day","tomorrow is sunday","what time is it","it is raining","it is very hot","it is very cold","see you tomorrow","see you later","goodbye","i am learning english","i speak english","i speak hindi","i speak marathi","this is my house","this is my book"]
+np.random.seed(42)
+tf.random.set_seed(42)
 
-hindi_sentences=["नमस्ते","नमस्ते","सुप्रभात","शुभ रात्रि","आप कैसे हैं","आपका नाम क्या है","मेरा नाम जॉन है","आप कहाँ जा रहे हैं","मैं घर जा रहा हूँ","मैं एक विद्यार्थी हूँ","मैं खुश हूँ","मैं दुखी हूँ","मुझे भूख लगी है","मैं थका हुआ हूँ","धन्यवाद","आपका स्वागत है","कृपया मेरी मदद करें","आप क्या कर रहे हैं","मैं तुमसे प्यार करता हूँ","मुझे यह पसंद है","मुझे नहीं पता","हाँ","नहीं","यहाँ आओ","वहाँ जाओ","बैठ जाओ","खड़े हो जाओ","दरवाज़ा खोलो","दरवाज़ा बंद करो","मुझे पानी दो","मेरा फोन कहाँ है","स्कूल कहाँ है","अस्पताल कहाँ है","मुझे खाना चाहिए","मुझे पानी चाहिए","मुझे सोना है","आज एक अच्छा दिन है","कल रविवार है","कितने बजे हैं","बारिश हो रही है","बहुत गर्मी है","बहुत ठंड है","कल मिलते हैं","बाद में मिलते हैं","अलविदा","मैं अंग्रेजी सीख रहा हूँ","मैं अंग्रेजी बोलता हूँ","मैं हिंदी बोलता हूँ","मैं मराठी बोलता हूँ","यह मेरा घर है","यह मेरी किताब है"]
+# Training data
+english_sentences=[
+"hello","hi","good morning","good night","how are you","what is your name","my name is john","where are you going","i am going home","i am a student","i am happy","i am sad","i am hungry","i am tired","thank you",
+"you are welcome","please help me","what are you doing","i love you","i like this","i do not know","yes","no","come here","go there","sit down","stand up","open the door","close the door","give me water",
+"where is my phone","where is the school","where is the hospital",
+"i want food","i want water","i want to sleep","today is a good day",
+"tomorrow is sunday","what time is it","it is raining","it is very hot",
+"it is very cold","see you tomorrow","see you later","goodbye",
+"i am learning english","i speak english","i speak hindi","i speak marathi",
+"this is my house","this is my book"]
+
+hindi_sentences=[
+"नमस्ते","नमस्ते","सुप्रभात","शुभ रात्रि","आप कैसे हैं","आपका नाम क्या है",
+"मेरा नाम जॉन है","आप कहाँ जा रहे हैं","मैं घर जा रहा हूँ","मैं एक विद्यार्थी हूँ",
+"मैं खुश हूँ","मैं दुखी हूँ","मुझे भूख लगी है","मैं थका हुआ हूँ","धन्यवाद",
+"आपका स्वागत है","कृपया मेरी मदद करें","आप क्या कर रहे हैं","मैं तुमसे प्यार करता हूँ",
+"मुझे यह पसंद है","मुझे नहीं पता","हाँ","नहीं","यहाँ आओ","वहाँ जाओ","बैठ जाओ",
+"खड़े हो जाओ","दरवाज़ा खोलो","दरवाज़ा बंद करो","मुझे पानी दो",
+"मेरा फोन कहाँ है","स्कूल कहाँ है","अस्पताल कहाँ है","मुझे खाना चाहिए",
+"मुझे पानी चाहिए","मुझे सोना है","आज एक अच्छा दिन है","कल रविवार है",
+"कितने बजे हैं","बारिश हो रही है","बहुत गर्मी है","बहुत ठंड है",
+"कल मिलते हैं","बाद में मिलते हैं","अलविदा","मैं अंग्रेजी सीख रहा हूँ",
+"मैं अंग्रेजी बोलता हूँ","मैं हिंदी बोलता हूँ","मैं मराठी बोलता हूँ",
+"यह मेरा घर है","यह मेरी किताब है"]
 
 if len(english_sentences)!=len(hindi_sentences):
     raise ValueError("English and Hindi sentence lists must have the same length.")
 
-print("="*60)
-print("ENGLISH -> HINDI TRANSLATOR")
-print("Encoder-Decoder LSTM")
-print("="*60)
+# Repeat data
+english_sentences=english_sentences*20
+hindi_sentences=hindi_sentences*20
 
 # Add start/end tokens
-hindi_sentences=[f"<start> {s} <end>" for s in hindi_sentences]
+hindi_sentences=[f"<start> {x} <end>" for x in hindi_sentences]
 
 # Tokenization
 eng_tokenizer=Tokenizer(filters="",lower=True,oov_token="<unk>")
@@ -32,29 +54,37 @@ eng_seq=eng_tokenizer.texts_to_sequences(english_sentences)
 hin_seq=hin_tokenizer.texts_to_sequences(hindi_sentences)
 
 # Padding
-max_encoder_length=max(map(len,eng_seq))
-max_decoder_length=max(map(len,hin_seq))
+max_encoder_length=max(len(x) for x in eng_seq)
+max_decoder_length=max(len(x) for x in hin_seq)
 encoder_input_data=pad_sequences(eng_seq,maxlen=max_encoder_length,padding="post")
 hin_padded=pad_sequences(hin_seq,maxlen=max_decoder_length,padding="post")
 decoder_input_data=hin_padded[:,:-1]
-decoder_target_data=np.expand_dims(hin_padded[:,1:],-1)
+decoder_target_data=hin_padded[:,1:]
 
+# Vocabulary
 eng_vocab_size=len(eng_tokenizer.word_index)+1
 hin_vocab_size=len(hin_tokenizer.word_index)+1
 
-print("\nEnglish vocabulary:",eng_vocab_size)
+print("="*60)
+print("ENGLISH -> HINDI TRANSLATOR")
+print("Encoder-Decoder LSTM")
+print("="*60)
+print("English vocabulary:",eng_vocab_size)
 print("Hindi vocabulary:",hin_vocab_size)
+print("Training examples:",len(english_sentences))
 
-# Model
-embedding_dim=64
-latent_dim=128
+# Model parameters
+embedding_dim=128
+latent_dim=256
 
+# Encoder
 encoder_inputs=Input(shape=(None,))
 encoder_embedding=Embedding(eng_vocab_size,embedding_dim,mask_zero=True)(encoder_inputs)
 encoder_lstm=LSTM(latent_dim,return_state=True)
-_,encoder_h,encoder_c=encoder_lstm(encoder_embedding)
-encoder_states=[encoder_h,encoder_c]
+_,state_h,state_c=encoder_lstm(encoder_embedding)
+encoder_states=[state_h,state_c]
 
+# Decoder
 decoder_inputs=Input(shape=(None,))
 decoder_embedding_layer=Embedding(hin_vocab_size,embedding_dim,mask_zero=True)
 decoder_embedding=decoder_embedding_layer(decoder_inputs)
@@ -63,18 +93,24 @@ decoder_outputs,_,_=decoder_lstm(decoder_embedding,initial_state=encoder_states)
 decoder_dense=Dense(hin_vocab_size,activation="softmax")
 decoder_outputs=decoder_dense(decoder_outputs)
 
+# Complete model
 model=Model([encoder_inputs,decoder_inputs],decoder_outputs)
-model.compile(optimizer="adam",loss="sparse_categorical_crossentropy",metrics=["accuracy"])
+model.compile(optimizer=tf.keras.optimizers.Adam(0.001),
+              loss="sparse_categorical_crossentropy",metrics=["accuracy"])
 model.summary()
 
 # Training
-early_stopping=EarlyStopping(monitor="val_loss",patience=5,restore_best_weights=True)
-history=model.fit([encoder_input_data,decoder_input_data],decoder_target_data,batch_size=8,epochs=40,validation_split=0.2,callbacks=[early_stopping],verbose=1)
+early_stopping=EarlyStopping(monitor="val_loss",patience=10,restore_best_weights=True)
+
+print("\nTraining model...")
+history=model.fit(
+    [encoder_input_data,decoder_input_data],
+    np.expand_dims(decoder_target_data,-1),
+    batch_size=16,epochs=10,validation_split=0.1,
+    callbacks=[early_stopping],verbose=1)
 
 print("\nTraining completed!")
-print("Training Loss:",history.history["loss"][-1])
 print("Training Accuracy:",history.history["accuracy"][-1])
-print("Validation Loss:",history.history["val_loss"][-1])
 print("Validation Accuracy:",history.history["val_accuracy"][-1])
 
 # Encoder inference
@@ -84,12 +120,15 @@ encoder_model=Model(encoder_inputs,encoder_states)
 decoder_state_h=Input(shape=(latent_dim,))
 decoder_state_c=Input(shape=(latent_dim,))
 decoder_embedding_inf=decoder_embedding_layer(decoder_inputs)
-decoder_outputs_inf,state_h,state_c=decoder_lstm(decoder_embedding_inf,initial_state=[decoder_state_h,decoder_state_c])
+decoder_outputs_inf,h,c=decoder_lstm(
+    decoder_embedding_inf,initial_state=[decoder_state_h,decoder_state_c])
 decoder_outputs_inf=decoder_dense(decoder_outputs_inf)
+decoder_model=Model(
+    [decoder_inputs,decoder_state_h,decoder_state_c],
+    [decoder_outputs_inf,h,c])
 
-decoder_model=Model([decoder_inputs,decoder_state_h,decoder_state_c],[decoder_outputs_inf,state_h,state_c])
-
-reverse_hindi_word_index={i:w for w,i in hin_tokenizer.word_index.items()}
+# Reverse dictionary
+reverse_hindi_word_index={index:word for word,index in hin_tokenizer.word_index.items()}
 
 # Translation function
 def translate_sentence(sentence):
@@ -101,38 +140,42 @@ def translate_sentence(sentence):
     target_seq=np.array([[start_token]])
     decoded_words=[]
 
-    for _ in range(max_decoder_length+5):
+    for _ in range(max_decoder_length):
         output,h,c=decoder_model.predict([target_seq]+states,verbose=0)
         token_id=np.argmax(output[0,-1,:])
         word=reverse_hindi_word_index.get(token_id,"<unk>")
+
         if token_id==end_token:
             break
         if word not in ["<start>","<unk>"]:
             decoded_words.append(word)
+
         target_seq=np.array([[token_id]])
         states=[h,c]
 
     return " ".join(decoded_words)
 
 # Testing
-test_sentences=["hello","how are you","what is your name","i am a student","i am happy","thank you","where are you going","i want water","good morning","goodbye"]
+test_sentences=["hello","how are you","what is your name","i am a student",
+"i am happy","thank you","where are you going","i want water",
+"good morning","goodbye"]
 
 print("\n"+"="*60)
-print("TESTING ENGLISH -> HINDI")
+print("TESTING")
 print("="*60)
 
 for sentence in test_sentences:
-    print(f"\nEnglish : {sentence}")
-    print(f"Hindi   : {translate_sentence(sentence)}")
+    print("\nEnglish :",sentence)
+    print("Hindi   :",translate_sentence(sentence))
 
 # Interactive translator
 print("\n"+"="*60)
 print("INTERACTIVE TRANSLATOR")
 print("="*60)
-print("Type 'exit' to stop.\n")
+print("Type 'exit' to stop.")
 
 while True:
-    sentence=input("English: ").strip()
+    sentence=input("\nEnglish: ").strip()
     if sentence.lower()=="exit":
         print("Goodbye!")
         break
