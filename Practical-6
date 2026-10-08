@@ -1,0 +1,56 @@
+# 1. Install dependencies if needed
+!pip install -q transformers torch
+
+import torch
+from transformers import AutoTokenizer, AutoModelForQuestionAnswering
+
+print("Loading the QA model and tokenizer...")
+
+# Load pre-trained BERT/RoBERTa model fine-tuned for extractive question answering
+model_name = "deepset/roberta-base-squad2"
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+model = AutoModelForQuestionAnswering.from_pretrained(model_name)
+
+# 2. Define the College Regulations / FAQs Context Document
+college_regulations = """
+Official College Regulations and Student FAQs:
+
+1. Attendance Policy: Students must maintain a minimum attendance of 75% in all registered courses to be eligible to appear for the end-semester examinations. Medical exemptions require a valid medical certificate submitted within 3 days of returning to campus.
+2. Grading System: The college follows a 10-point grading system. A grade 'A+' corresponds to 10 points, 'A' to 9 points, 'B+' to 8 points, and 'C' is the passing grade with 5 points. Anything below 5 points is considered a Fail (F).
+3. Library Timings: The central library is open from 8:00 AM to 10:00 PM on weekdays, and from 9:00 AM to 5:00 PM on Saturdays. It remains closed on Sundays and national holidays.
+4. Examination Rules: Mobile phones, smartwatches, and electronic gadgets are strictly prohibited inside the examination hall. Carrying them will lead to immediate cancellation of the exam paper and disciplinary action.
+5. Fee Payment: The deadline for tuition fee payment for the odd semester is July 31st. Late payments will incur a fine of ₹50 per day after the deadline expires.
+"""
+
+# 3. Define Student Queries
+student_queries = [
+    "What is the minimum attendance required to write exams?",
+    "What happens if I bring a mobile phone to the exam hall?",
+    "What are the library timings on Saturdays?",
+    "What is the penalty for late fee payment?"
+]
+
+print("\n" + "="*50)
+print("STUDENT QUERY ASSISTANT RESULTS:")
+print("="*50 + "\n")
+
+# 4. Process each query directly
+for i, query in enumerate(student_queries, 1):
+    # Tokenize question and context together
+    inputs = tokenizer(query, college_regulations, return_tensors="pt")
+
+    # Get model prediction logits
+    with torch.no_grad():
+        outputs = model(**inputs)
+
+    # Extract the highest scoring start and end token positions for the answer
+    answer_start_index = torch.argmax(outputs.start_logits)
+    answer_end_index = torch.argmax(outputs.end_logits)
+
+    # Decode tokens back to text
+    predict_answer_tokens = inputs.input_ids[0, answer_start_index : answer_end_index + 1]
+    answer = tokenizer.decode(predict_answer_tokens, skip_special_tokens=True)
+
+    print(f"Query {i}: {query}")
+    print(f"Answer:  {answer.strip()}")
+    print("-" * 50)
